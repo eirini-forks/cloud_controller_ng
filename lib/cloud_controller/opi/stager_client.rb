@@ -46,14 +46,17 @@ module OPI
         }
       }
 
+      internal_client = HTTPClient.new
+      client.ssl_config.add_trust_ca(config.get(:internal_api, :tls, :ca_path))
+      client.ssl_config.set_client_cert_file(config.get(:internal_api, :tls, :cert_path), config.get(:internal_api, :tls, :key_path))
+      auth = Base64.strict_encode64("#{config.get(:internal_api, :auth_user)}:#{CGI.escape(config.get(:internal_api, :auth_password))}").strip
+      headers = {'Authorization': "Basic #{auth}"}
+      resp = internal_client.post(callback_uri, body: MultiJson.dump(payload), header: headers)
 
-      client = HTTPClient.new
-      client.ssl_config.add_trust_ca("/var/vcap/jobs/cloud_controller_ng/config/certs/mutual_tls_ca.crt")
-      client.ssl_config.set_client_cert_file("/var/vcap/jobs/cloud_controller_ng/config/certs/mutual_tls.crt", "/var/vcap/jobs/cloud_controller_ng/config/certs/mutual_tls.key")
-      headers = {}
-      headers['Authorization'] = 'Basic ' + Base64.strict_encode64('<replace-with-internal-user>:<replace-with-internal-user-password').strip
-
-      cclient.post(callback_uri, body: MultiJson.dump(payload), header: headers)
+      if resp.status_code != 200
+        logger.error('stage.docker.response', staging_guid: staging_guid, error: resp.body)
+        raise CloudController::Errors::ApiError.new_from_details('RunnerError', resp.body)
+      end
     end
 
 

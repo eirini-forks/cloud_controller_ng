@@ -11,7 +11,12 @@ RSpec.describe(OPI::StagerClient) do
       tls_port: 8182,
       internal_api: {
         auth_user: 'internal_user',
-        auth_password: 'internal_password'
+        auth_password: 'internal_password',
+        tls: {
+          ca_path: File.join(Paths::FIXTURES, 'certs/bbs_ca.crt'),
+          cert_path: File.join(Paths::FIXTURES, 'certs/opi_client.crt'),
+          key_path: File.join(Paths::FIXTURES, 'certs/opi_client.key')
+        }
       },
       internal_service_hostname: 'api.internal.cf'
     )
@@ -98,6 +103,47 @@ RSpec.describe(OPI::StagerClient) do
         expect { stager_client.stage('guid', staging_details) }.to raise_error(CloudController::Errors::ApiError, 'Runner error: failed to stage')
       end
     end
+  end
+
+  context 'when staging an app with docker lifecycle' do
+    before do
+      staging_details.lifecycle = double(type: VCAP::CloudController::Lifecycles::DOCKER)
+      staging_details.package = double(image: 'nuijen/shipwreck-off-a-rocky-coast')
+       stub_request(:post, "https://internal_user:internal_password@api.internal.cf:8182/internal/v3/staging//build_completed?start=").to_return(status: 200, body: "", headers: {})
+    end
+
+    it 'should call the completion callback url' do
+      stager_client.stage('guid', staging_details)
+      expect(WebMock).to have_requested(:post, 'https://internal_user:internal_password@api.internal.cf:8182/internal/v3/staging//build_completed?start=').with(body: {
+        :result => {
+          :lifecycle_type => VCAP::CloudController::Lifecycles::DOCKER,
+          :lifecycle_metadata => {
+            :docker_image => 'nuijen/shipwreck-off-a-rocky-coast',
+          },
+          :process_types => {
+            :web => ''
+          },
+          :execution_metadata => {
+            :cmd => [],
+            :ports => [{ :Port => 8080, :Protocol => "tcp"}],
+          }.to_json,
+        } }.to_json,
+        headers: {'Authorization': 'Basic aW50ZXJuYWxfdXNlcjppbnRlcm5hbF9wYXNzd29yZA==' },
+      )
+    end
+    context 'and the completion callback is not successful' do
+    before do
+      staging_details.lifecycle = double(type: VCAP::CloudController::Lifecycles::DOCKER)
+      staging_details.package = double(image: 'nuijen/shipwreck-off-a-rocky-coast')
+       stub_request(:post, "https://internal_user:internal_password@api.internal.cf:8182/internal/v3/staging//build_completed?start=").to_return(status: 501, body: { 'message' => 'failed to stage' }.to_json)
+    end
+
+    it 'should raise an error' do
+      expect { stager_client.stage('guid', staging_details) }.to raise_error(CloudController::Errors::ApiError, /failed to stage/)
+    end
+
+    end
+
   end
 
   def stub_staging_details
