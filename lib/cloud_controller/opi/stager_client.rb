@@ -9,6 +9,13 @@ module OPI
   class StagerClient < BaseClient
     def stage(staging_guid, staging_details)
       logger.info('stage.request', staging_guid: staging_guid)
+      
+      if staging_details.lifecycle.type == VCAP::CloudController::Lifecycles::DOCKER
+        send_completion_callback(staging_guid, staging_details)
+        return
+      end
+
+
       staging_request = to_request(staging_guid, staging_details)
 
       payload = MultiJson.dump(staging_request)
@@ -23,6 +30,32 @@ module OPI
     def stop_staging(staging_guid); end
 
     private
+
+    def send_completion_callback(staging_guid, staging_details)
+      callback_uri = staging_completion_callback(staging_details)
+      payload = {
+        :result => {
+          :lifecycle_type => "docker",
+          :lifecycle_metadata => {
+            :docker_image=>staging_details.package.image
+          },
+          :process_types => {
+            :web => ""
+          },
+          :execution_metadata => "{\"cmd\":[],\"ports\":[{\"Port\":8080,\"Protocol\":\"tcp\"}]}"
+        }
+      }
+
+
+      client = HTTPClient.new
+      client.ssl_config.add_trust_ca("/var/vcap/jobs/cloud_controller_ng/config/certs/mutual_tls_ca.crt")
+      client.ssl_config.set_client_cert_file("/var/vcap/jobs/cloud_controller_ng/config/certs/mutual_tls.crt", "/var/vcap/jobs/cloud_controller_ng/config/certs/mutual_tls.key")
+      headers = {}
+      headers['Authorization'] = 'Basic ' + Base64.strict_encode64('<replace-with-internal-user>:<replace-with-internal-user-password').strip
+
+      cclient.post(callback_uri, body: MultiJson.dump(payload), header: headers)
+    end
+
 
     def to_request(staging_guid, staging_details)
       lifecycle_type = staging_details.lifecycle.type
