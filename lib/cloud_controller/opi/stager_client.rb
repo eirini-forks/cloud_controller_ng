@@ -15,7 +15,6 @@ module OPI
         return
       end
 
-
       staging_request = to_request(staging_guid, staging_details)
 
       payload = MultiJson.dump(staging_request)
@@ -32,7 +31,6 @@ module OPI
     private
 
     def send_completion_callback(staging_guid, staging_details)
-      callback_uri = staging_completion_callback(staging_details)
       payload = {
         :result => {
           :lifecycle_type => "docker",
@@ -46,17 +44,9 @@ module OPI
         }
       }
 
-      internal_client = HTTPClient.new
-      client.ssl_config.add_trust_ca(config.get(:internal_api, :tls, :ca_path))
-      client.ssl_config.set_client_cert_file(config.get(:internal_api, :tls, :cert_path), config.get(:internal_api, :tls, :key_path))
-      auth = Base64.strict_encode64("#{config.get(:internal_api, :auth_user)}:#{CGI.escape(config.get(:internal_api, :auth_password))}").strip
-      headers = {'Authorization': "Basic #{auth}"}
-      resp = internal_client.post(callback_uri, body: MultiJson.dump(payload), header: headers)
-
-      if resp.status_code != 200
-        logger.error('stage.docker.response', staging_guid: staging_guid, error: resp.body)
-        raise CloudController::Errors::ApiError.new_from_details('RunnerError', resp.body)
-      end
+      build = VCAP::CloudControlle::BuildModel.find(guid: staging_guid)
+      completion_handler = VCAP::CloudController::Diego::Docker::StagingCompletionHandler.new(build)
+      completion_handler.staging_complete(payload, staging_details.start_after_staging)
     end
 
 
