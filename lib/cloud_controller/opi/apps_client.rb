@@ -147,6 +147,10 @@ module OPI
       MultiJson.dump(body)
     end
 
+    def filter_annotations(annotations)
+      annotations.select { |anno| anno.key.start_with? 'prometheus.io' }.map { |anno| { key: anno.key, value: anno.value }
+    end
+
     def health_check_timeout_in_seconds(process)
       process.health_check_timeout || config.get(:default_health_check_timeout)
     end

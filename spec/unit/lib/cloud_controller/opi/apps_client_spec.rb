@@ -204,6 +204,41 @@ RSpec.describe(OPI::Client) do
         end
       end
 
+      context 'when the app has annotations' do
+        let(:annotations) {
+          {
+            annotations: [
+              annotation: {
+                key: 'prometheus.io/port',
+                value: '6666',
+              }
+            ]
+          }
+        }
+        before do
+          ::VCAP::CloudController::AppAnnotationModel.create(
+            resource_guid: 'app-guid',
+            key: 'namespace',
+            value: 'secret-namespace'
+          )
+          ::VCAP::CloudController::AppAnnotationModel.create(
+            resource_guid: 'app-guid',
+            key: 'prometheus.io/port',
+            value: '6666'
+          )
+        end
+
+        it 'propagates only those that start with prometheus.io' do
+          response = client.desire_app(lrp)
+
+          expect(response.status_code).to equal(201)
+          expect(WebMock).to have_requested(:put, "#{opi_url}/apps/process-guid-#{lrp.version}").with { |request|
+            actual_body = MultiJson.load(request.body, symbolize_keys: true)
+            actual_body == expected_body.merge(annotations)
+          }
+        end
+      end
+
       context 'when app belongs to buildpack lifecycle' do
         let(:lifecycle_type) { :buildpack }
         let(:buildpack_lifecycle) {
