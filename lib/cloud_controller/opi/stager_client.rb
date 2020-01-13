@@ -52,10 +52,25 @@ module OPI
       completion_handler.staging_complete(payload, staging_details.start_after_staging)
     end
 
-    def to_request(staging_guid, staging_details)
+    def lifecycle_data(staging_details)
       lifecycle_type = staging_details.lifecycle.type
       action_builder = VCAP::CloudController::Diego::LifecycleProtocol.protocol_for_type(lifecycle_type).staging_action_builder(config, staging_details)
-      lifecycle_data = action_builder.lifecycle_data
+      action_builder.lifecycle_data
+    end
+
+    def upload_buildpack_artifacts_cache_uri(staging_details, lifecycle_data)
+      upload_buildpack_artifacts_cache_uri       = URI(config.get(:diego, :cc_uploader_url))
+      upload_buildpack_artifacts_cache_uri.path  = "/v1/build_artifacts/#{staging_details.staging_guid}"
+      upload_buildpack_artifacts_cache_uri.query = {
+        'cc-build-artifacts-upload-uri' => lifecycle_data[:build_artifacts_cache_upload_uri],
+        'timeout'                       => config.get(:staging, :timeout_in_seconds),
+      }.to_param
+      upload_buildpack_artifacts_cache_uri.to_s
+    end
+
+    def to_request(staging_guid, staging_details)
+      lifecycle_data = lifecycle_data(staging_details)
+      buldpack_cache_upload_uri = upload_buildpack_artifacts_cache_uri(staging_details, lifecycle_data)
 
       cc_uploader_url = config.get(:opi, :cc_uploader_url)
       droplet_upload_uri = "#{cc_uploader_url}/v1/droplet/#{staging_guid}?cc-droplet-upload-uri=#{lifecycle_data[:droplet_upload_uri]}"
@@ -71,7 +86,9 @@ module OPI
           },
           cpu_weight: VCAP::CloudController::Diego::STAGING_TASK_CPU_WEIGHT,
           disk_mb: staging_details.staging_disk_in_mb,
-          memory_mb: staging_details.staging_memory_in_mb
+          memory_mb: staging_details.staging_memory_in_mb,
+          buildpack_cache_upload_uri: buildpack_cache_upload_uri,
+          buildpack_cache_download_uri: lifecycle_data[:build_artifacts_cache_download_uri]
       }
     end
 
