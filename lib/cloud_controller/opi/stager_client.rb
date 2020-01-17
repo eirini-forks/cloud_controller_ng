@@ -52,12 +52,6 @@ module OPI
       completion_handler.staging_complete(payload, staging_details.start_after_staging)
     end
 
-    def lifecycle_data(staging_details)
-      lifecycle_type = staging_details.lifecycle.type
-      action_builder = VCAP::CloudController::Diego::LifecycleProtocol.protocol_for_type(lifecycle_type).staging_action_builder(config, staging_details)
-      action_builder.lifecycle_data
-    end
-
     def upload_buildpack_artifacts_cache_uri(staging_details, lifecycle_data)
       upload_buildpack_artifacts_cache_uri       = URI(config.get(:diego, :cc_uploader_url))
       upload_buildpack_artifacts_cache_uri.path  = "/v1/build_artifacts/#{staging_details.staging_guid}"
@@ -69,8 +63,11 @@ module OPI
     end
 
     def to_request(staging_guid, staging_details)
-      lifecycle_data = lifecycle_data(staging_details)
-      buldpack_cache_upload_uri = upload_buildpack_artifacts_cache_uri(staging_details, lifecycle_data)
+      lifecycle_type = staging_details.lifecycle.type
+      action_builder = VCAP::CloudController::Diego::LifecycleProtocol.protocol_for_type(lifecycle_type).staging_action_builder(config, staging_details)
+      lifecycle_data = action_builder.lifecycle_data
+
+      buildpack_cache_upload_uri = upload_buildpack_artifacts_cache_uri(staging_details, lifecycle_data)
 
       cc_uploader_url = config.get(:opi, :cc_uploader_url)
       droplet_upload_uri = "#{cc_uploader_url}/v1/droplet/#{staging_guid}?cc-droplet-upload-uri=#{lifecycle_data[:droplet_upload_uri]}"
