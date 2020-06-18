@@ -118,6 +118,7 @@ module OPI
       timeout_ms = (process.health_check_timeout || 0) * 1000
       cpu_weight = VCAP::CloudController::Diego::TaskCpuWeightCalculator.new(memory_in_mb: process.memory).calculate
       lifecycle = lifecycle_for(process)
+      sidecars = map_sidecars(process)
       body = {
         guid: process.guid,
         version: process.version,
@@ -145,9 +146,23 @@ module OPI
         ports: process.open_ports,
         routes: routes(process),
         lifecycle: lifecycle.to_hash,
-        user_defined_annotations: filter_annotations(process.app.annotations)
+        user_defined_annotations: filter_annotations(process.app.annotations),
+        sidecars: sidecars
       }
       MultiJson.dump(body)
+    end
+
+    def map_sidecars(process)
+      process.sidecars.map do |sidecar|
+        environment = VCAP::CloudController::Diego::Environment.as_json_for_sidecar(sidecar)
+        {
+          name: sidecar.name,
+          environment: environment,
+          command: sidecar.command,
+          process_types: sidecar.process_types,
+          memory_mb: sidecar.memory || process.memory
+        }
+      end
     end
 
     def filter_annotations(annotations)
