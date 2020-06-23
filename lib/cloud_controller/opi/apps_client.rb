@@ -155,10 +155,15 @@ module OPI
     def map_sidecars(process)
       process.sidecars.map do |sidecar|
         environment = ::VCAP::CloudController::Diego::Environment.new(process, ::VCAP::CloudController::EnvironmentVariableGroup.running.environment_json).as_json_for_sidecar(sidecar)
+        command = unless sidecar.command.nil? or sidecar.command.empty?
+                  ['/bin/sh', '-c', sidecar.command]
+                else
+                  []
+                end
         {
           name: sidecar.name,
           environment: hash_values_to_s(environment),
-          command: sidecar.command,
+          command: command,
           process_types: sidecar.process_types,
           memory_mb: sidecar.memory || process.memory
         }
