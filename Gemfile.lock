@@ -57,7 +57,7 @@ GEM
       tzinfo (~> 1.1)
     addressable (2.7.0)
       public_suffix (>= 2.0.2, < 5.0)
-    aliyun-sdk (0.7.3)
+    aliyun-sdk (0.8.0)
       nokogiri (~> 1.6)
       rest-client (~> 2.0)
     allowy (2.1.0)
@@ -160,8 +160,8 @@ GEM
       rake
     fluent-logger (0.8.2)
       msgpack (>= 1.0.0, < 2)
-    fog-aliyun (0.3.17)
-      aliyun-sdk (~> 0.7.3)
+    fog-aliyun (0.3.19)
+      aliyun-sdk (~> 0.8.0)
       fog-core
       fog-json
       ipaddress (~> 0.8)
