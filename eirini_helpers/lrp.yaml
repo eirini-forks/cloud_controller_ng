@@ -1,0 +1,39 @@
+# lrp = &eiriniv1.LRP{
+# 	ObjectMeta: metav1.ObjectMeta{
+# 		Name: lrpName,
+# 	},
+# 	Spec: eiriniv1.LRPSpec{
+# 		GUID:                   lrpGUID,
+# 		Version:                lrpVersion,
+# 		Image:                  "eirini/dorini",
+# 		AppGUID:                "the-app-guid",
+# 		AppName:                "k-2so",
+# 		SpaceName:              "s",
+# 		OrgName:                "o",
+# 		Env:                    map[string]string{"FOO": "BAR"},
+# 		MemoryMB:               256,
+# 		DiskMB:                 256,
+# 		CPUWeight:              10,
+# 		Instances:              1,
+# 		LastUpdated:            "a long time ago in a galaxy far, far away",
+# 		Ports:                  []int32{8080},
+# 		VolumeMounts:           []eiriniv1.VolumeMount{},
+# 		UserDefinedAnnotations: map[string]string{},
+# 		AppRoutes:              []eiriniv1.Route{{Hostname: "app-hostname-1", Port: 8080}},
+# 	},
+# }
+
+apiVersion: eirini.cloudfoundry.org/v1
+kind: LRP
+metadata:
+  name: testapp
+  namespace: eirini
+spec:
+  GUID: "the-app-guid"
+  version: "version-1"
+  instances: 1
+  lastUpdated: "never"
+  diskMB: 10
+  ports:
+  - 8080
+  image: "eirini/dorini"
