@@ -5,10 +5,11 @@ module Kubernetes
     class Error < StandardError; end
     class ConflictError < Error; end
 
-    def initialize(build_kube_client:, kpack_kube_client:, route_kube_client:)
+    def initialize(build_kube_client:, kpack_kube_client:, route_kube_client:, eirini_kube_client:)
       @build_kube_client = build_kube_client
       @kpack_kube_client = kpack_kube_client
       @route_kube_client = route_kube_client
+      @eirini_kube_client = eirini_kube_client
     end
 
     def create_image(resource_config)
