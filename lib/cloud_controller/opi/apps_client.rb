@@ -6,6 +6,7 @@ require 'json'
 require 'ostruct'
 require 'cloud_controller/opi/helpers'
 require 'cloud_controller/opi/base_client'
+require 'kubeclient'
 
 module OPI
   PROMETHEUS_PREFIX = 'prometheus.io'.freeze
@@ -13,8 +14,49 @@ module OPI
   class Client < BaseClient
     def desire_app(process)
       process_guid = process_guid(process)
-      path = "/apps/#{process_guid}"
-      client.put(path, body: desire_body(process))
+
+      timeout_ms = (process.health_check_timeout || 0) * 1000
+      cpu_weight = VCAP::CloudController::Diego::TaskCpuWeightCalculator.new(memory_in_mb: process.memory).calculate
+      lifecycle = lifecycle_for(process)
+
+      lrp = Kubeclient::Resource.new({
+        metadata: {
+          name: process.app_name,
+          namespace: "eirini", # TODO: get this from config
+        },
+        spec: {
+          GUID: process.guid,
+          version: process.version,
+          processType: process.type,
+          appGUID: process.app.guid,
+          appName: process.app.name,
+          spaceGUID: process.space.guid,
+          spaceName: process.space.name,
+          organizationGUID: process.organization.guid,
+          organizationName: process.organization.name,
+          env: hash_values_to_s(environment_variables(process)),
+          instances: process.desired_instances,
+          memoryMB: process.memory,
+          diskMB: process.disk_quota,
+          cpuWeight: cpu_weight,
+          health: {
+            type: process.health_check_type,
+            port: 8080, # TODO extract from endpoint
+            endpoint: process.health_check_http_endpoint,
+            timeoutMs: timeout_ms,
+          }
+          # start_timeout_ms: health_check_timeout_in_seconds(process) * 1000, # TODO: add to eirini?
+          lastUpdated: process.updated_at.to_f.to_s,
+          # volumeMounts: generate_volume_mounts(process), # TODO
+          ports: process.open_ports,
+          appRoutes: routes(process),
+          lifecycle: lifecycle.to_hash,
+          userDefinedAnnotations: filter_annotations(process.app.annotations)
+        }
+      })
+      k8s_api_client.eirini_kube_client.create_entity("LRP", "lrps", lrp)
+      # path = "/apps/#{process_guid}"
+      # client.put(path, body: desire_body(process))
     end
 
     def fetch_scheduling_infos
@@ -249,6 +291,10 @@ module OPI
 
         [k.to_s, v]
       end]
+    end
+
+    def k8s_api_client
+      @k8s_api_client ||= CloudController::DependencyLocator.instance.k8s_api_client
     end
   end
 end
