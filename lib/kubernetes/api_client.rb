@@ -5,6 +5,8 @@ module Kubernetes
     class Error < StandardError; end
     class ConflictError < Error; end
 
+    attr_reader :eirini_kube_client
+
     def initialize(build_kube_client:, kpack_kube_client:, route_kube_client:, eirini_kube_client:)
       @build_kube_client = build_kube_client
       @kpack_kube_client = kpack_kube_client

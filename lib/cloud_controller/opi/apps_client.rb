@@ -13,16 +13,20 @@ module OPI
 
   class Client < BaseClient
     def desire_app(process)
+      puts "Desiring process: #{process}"
       process_guid = process_guid(process)
 
       timeout_ms = (process.health_check_timeout || 0) * 1000
       cpu_weight = VCAP::CloudController::Diego::TaskCpuWeightCalculator.new(memory_in_mb: process.memory).calculate
+      puts "Getting lifecycle for: #{process}"
       lifecycle = lifecycle_for(process)
+
+      puts "Lifecycle: #{lifecycle.to_hash}"
 
       lrp = Kubeclient::Resource.new({
         metadata: {
-          name: process.app_name,
-          namespace: "eirini", # TODO: get this from config
+          name: "#{process.guid}-#{process.version}",
+          namespace: "cf-workloads", # TODO: get this from config
         },
         spec: {
           GUID: process.guid,
@@ -39,24 +43,24 @@ module OPI
           memoryMB: process.memory,
           diskMB: process.disk_quota,
           cpuWeight: cpu_weight,
-          health: {
-            type: process.health_check_type,
-            port: 8080, # TODO extract from endpoint
-            endpoint: process.health_check_http_endpoint,
-            timeoutMs: timeout_ms,
-          }
+          # health: {
+          #   type: process.health_check_type,
+          #   port: 8080, # TODO extract from endpoint
+          #   endpoint: process.health_check_http_endpoint,
+          #   timeoutMs: timeout_ms,
+          # },
           # start_timeout_ms: health_check_timeout_in_seconds(process) * 1000, # TODO: add to eirini?
           lastUpdated: process.updated_at.to_f.to_s,
-          # volumeMounts: generate_volume_mounts(process), # TODO
+          volumeMounts: generate_volume_mounts(process),
           ports: process.open_ports,
-          appRoutes: routes(process),
-          lifecycle: lifecycle.to_hash,
-          userDefinedAnnotations: filter_annotations(process.app.annotations)
+          # appRoutes: routes(process),
+          userDefinedAnnotations: filter_annotations(process.app.annotations),
+          image: lifecycle.to_hash[:docker_lifecycle][:image],
         }
       })
+
+      p lrp
       k8s_api_client.eirini_kube_client.create_entity("LRP", "lrps", lrp)
-      # path = "/apps/#{process_guid}"
-      # client.put(path, body: desire_body(process))
     end
 
     def fetch_scheduling_infos
@@ -79,22 +83,31 @@ module OPI
     end
 
     def get_app(process)
-      path = "/apps/#{process.guid}/#{process.version}"
+      puts "get_app(#{process.guid}/#{process.version})"
+      lrp = k8s_api_client.eirini_kube_client.get_entity("lrps", "#{process.guid}-#{process.version}", "cf-workloads")
 
-      response = client.get(path)
-      if response.status_code == 404
-        return nil
-      end
+      puts "LRP spec: #{lrp}"
 
-      desired_lrp_response = OPI.recursive_ostruct(JSON.parse(response.body))
-      desired_lrp_response.desired_lrp
+      OpenStruct.new(
+        process_guid: lrp.spec.GUID,
+        instances: lrp.spec.instances,
+        routes: [],
+        annotation: "",
+        image: lrp.spec.lifecycle.docker_lifecycle.image,
+      )
+    rescue Kubeclient::ResourceNotFoundError
+      puts "App #{process.guid}/#{process.version} not found"
+      nil
     end
 
     def stop_app(versioned_guid)
+      puts "stop_app(#{versioned_guid})"
       guid = VCAP::CloudController::Diego::ProcessGuid.cc_process_guid(versioned_guid)
       version = VCAP::CloudController::Diego::ProcessGuid.cc_process_version(versioned_guid)
-      path = "/apps/#{guid}/#{version}/stop"
-      client.put(path)
+      k8s_api_client.eirini_kube_client.delete_entity("lrps", "#{guid}-#{version}", "cf-workloads")
+    rescue Kubeclient::ResourceNotFoundError
+      puts "App #{guid}-#{version} not found, stop not possible"
+      nil
     end
 
     def stop_index(versioned_guid, index)
@@ -260,14 +273,17 @@ module OPI
     end
 
     def generate_volume_mounts(process)
+      p process.app.service_bindings
       app_volume_mounts = VCAP::CloudController::Diego::Protocol::AppVolumeMounts.new(process.app).as_json
       proto_volume_mounts = []
+
+      p app_volume_mounts
 
       app_volume_mounts.each do |volume_mount|
         if volume_mount['device']['mount_config'].present? && volume_mount['device']['mount_config']['name'].present?
           proto_volume_mount = {
-            volume_id: volume_mount['device']['mount_config']['name'],
-            mount_dir: volume_mount['container_dir']
+            claimName: volume_mount['device']['mount_config']['name'],
+            mountPath: volume_mount['container_dir']
           }
           proto_volume_mounts.append(proto_volume_mount)
         end
