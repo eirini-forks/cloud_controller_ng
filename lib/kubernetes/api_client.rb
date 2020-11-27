@@ -6,12 +6,14 @@ module Kubernetes
     class ConflictError < Error; end
 
     attr_reader :eirini_kube_client
+    attr_reader :core_kube_client
 
-    def initialize(build_kube_client:, kpack_kube_client:, route_kube_client:, eirini_kube_client:)
+    def initialize(build_kube_client:, kpack_kube_client:, route_kube_client:, eirini_kube_client:, core_kube_client:)
       @build_kube_client = build_kube_client
       @kpack_kube_client = kpack_kube_client
       @route_kube_client = route_kube_client
       @eirini_kube_client = eirini_kube_client
+      @core_kube_client = core_kube_client
     end
 
     def create_image(resource_config)

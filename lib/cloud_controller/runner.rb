@@ -90,6 +90,29 @@ module VCAP::CloudController
       end
     end
 
+    def run2!
+      create_pidfile
+
+      EM.run do
+        setup_logging
+        setup_telemetry_logging
+        setup_db
+        @config.configure_components
+        setup_app_log_emitter
+
+        logger.info('Hi2')
+        k8s_api_client = CloudController::DependencyLocator.instance.k8s_api_client
+        # curl http://localhost:8080/api/v1/events\?fieldSelector\=involvedObject.kind\=LRP\&watch\=1
+        k8s_api_client.core_kube_client.watch_entities("events", fild_selector: 'involvedObject.kind=LRP') do |notice|
+          logger.info("Got lrp notification: #{notice}")
+        end
+        logger.info('Bye2')
+      rescue => e
+        logger.error "Encountered error: #{e}\n#{e.backtrace.join("\n")}"
+        raise e
+      end
+    end
+
     def gather_periodic_metrics
       logger.info('starting periodic metrics updater')
       periodic_updater.setup_updates

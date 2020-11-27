@@ -1,4 +1,5 @@
 web:                bin/cloud_controller -c /config/cloud_controller_ng.yml -s /config/secrets.yml
+event-watcher:      bin/event_watcher -c /config/cloud_controller_ng.yml -s /config/secrets.yml
 local-worker:       bundle exec rake jobs:local
 api-worker:         bundle exec rake jobs:generic
 clock:              bundle exec rake clock:start

@@ -408,11 +408,19 @@ module CloudController
         ca_crt: config.kubernetes_ca_cert,
       )
 
+      core_kube_client = Kubernetes::KubeClientBuilder.build(
+        api_group_url: "#{config.kubernetes_host_url}/api",
+        version: 'v1',
+        service_account_token: config.kubernetes_service_account_token,
+        ca_crt: config.kubernetes_ca_cert,
+      )
+
       Kubernetes::ApiClient.new(
         build_kube_client: build_kube_client,
         kpack_kube_client: kpack_kube_client,
         route_kube_client: route_kube_client,
         eirini_kube_client: eirini_kube_client,
+        core_kube_client: core_kube_client,
       )
     end
 
