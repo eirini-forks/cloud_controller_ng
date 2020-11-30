@@ -6,7 +6,19 @@ ENV['RAILS_ENV'] ||= 'production'
 ENV['SINATRA_ACTIVESUPPORT_WARNING'] ||= 'false'
 
 require 'cloud_controller'
+require 'http'
+require 'logger'
 begin
+  class HTTP::Client
+    def initialize(default_options = {})
+      logger = Logger.new(STDOUT)
+      logger.level = Logger::DEBUG
+      @default_options = HTTP::Options.new(default_options.merge({features: { logging: { logger: logger } }}))
+      @connection = nil
+      @state = :clean
+    end
+  end
+
   VCAP::CloudController::Runner.new(ARGV).run2!
 rescue => e
   puts e
