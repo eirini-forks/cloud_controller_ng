@@ -421,6 +421,7 @@ module CloudController
         route_kube_client: route_kube_client,
         eirini_kube_client: eirini_kube_client,
         core_kube_client: core_kube_client,
+        config: config
       )
     end
 

@@ -10,6 +10,7 @@ require 'cloud_controller/metrics/periodic_updater'
 require 'cloud_controller/metrics/request_metrics'
 require 'cloud_controller/telemetry_logger'
 require 'cloud_controller/secrets_fetcher'
+require 'net/http'
 
 module VCAP::CloudController
   class Runner
@@ -98,15 +99,40 @@ module VCAP::CloudController
       @config.configure_components
       setup_app_log_emitter
 
-      logger.info('Hi2')
-      k8s_api_client = CloudController::DependencyLocator.instance.k8s_api_client
-      logger.info("core_kube_client = #{k8s_api_client.core_kube_client.inspect}")
-      # curl http://localhost:8080/api/v1/events\?fieldSelector\=involvedObject.kind\=LRP\&watch\=1
-      #k8s_api_client.core_kube_client.watch_entities("events", field_selector: 'involvedObject.kind=LRP', namespace: "cf-workloads") do |notice|
-      k8s_api_client.core_kube_client.watch_pods(namespace: "cf-workloads") do |notice|
-        logger.info("Got lrp notification: #{notice}")
+      EM.run do
+        k8s_api_client = CloudController::DependencyLocator.instance.k8s_api_client
+
+        # loop do
+        #   k8s_api_client.core_kube_client.watch_entities("events", field_selector: 'involvedObject.kind=LRP', namespace: "cf-workloads") do |notice|
+        #     logger.info("Got lrp notification: #{notice}")
+        #   end
+        #   puts "exited, restarting..."
+        # end
+
+        uri = URI("#{k8s_api_client.config.kubernetes_host_url}/api/v1/watch/namespaces/cf-workloads/events\?fieldSelector\=involvedObject.kind\=LRP")
+        h = Net::HTTP.new(uri.hostname, uri.port)
+        h.set_debug_output($stdout)
+        h.use_ssl = true
+        p k8s_api_client.config.kubernetes_ca_cert
+        p k8s_api_client.config.get(:kubernetes, :ca_file)
+        h.ca_file = k8s_api_client.config.get(:kubernetes, :ca_file)
+        h.start do |http|
+          puts "start started"
+
+          req = Net::HTTP::Get.new(uri)
+          req['Authorization'] = "Bearer #{k8s_api_client.config.kubernetes_service_account_token}"
+          http.request(req) do |res|
+            res.read_body do |chunk|
+              p chunk
+            end
+          end
+        end
+
+        puts "start finished"
+      rescue => e
+        logger.error "Encountered error: #{e}\n#{e.backtrace.join("\n")}"
+        raise e
       end
-      logger.info('Bye2')
     end
 
     def gather_periodic_metrics
