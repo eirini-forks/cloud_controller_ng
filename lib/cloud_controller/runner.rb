@@ -1,4 +1,5 @@
 require 'steno'
+require 'json'
 require 'optparse'
 require 'cloud_controller/uaa/uaa_token_decoder'
 require 'cloud_controller/uaa/uaa_verification_keys'
@@ -113,6 +114,7 @@ module VCAP::CloudController
         h = Net::HTTP.new(uri.hostname, uri.port)
         h.set_debug_output($stdout)
         h.use_ssl = true
+        h.read_timeout = 3600
         p k8s_api_client.config.kubernetes_ca_cert
         p k8s_api_client.config.get(:kubernetes, :ca_file)
         h.ca_file = k8s_api_client.config.get(:kubernetes, :ca_file)
@@ -121,9 +123,36 @@ module VCAP::CloudController
 
           req = Net::HTTP::Get.new(uri)
           req['Authorization'] = "Bearer #{k8s_api_client.config.kubernetes_service_account_token}"
+          req['Contenty-Type'] = "application/json"
+          req['Accept'] = "application/json"
+          last = ''
           http.request(req) do |res|
             res.read_body do |chunk|
-              p chunk
+              p "chunk: #{chunk}"
+              parse_events(last, chunk) do |event|
+                p "yielded event: #{event}"
+                instance_index = event['metadata']['labels']["cloudfoundry.org/instance_index"]
+                process_guid = event['metadata']['annotations']["cloudfoundry.org/process_guid"]
+                app_guid = Diego::ProcessGuid.cc_process_guid(process_guid)
+
+                process = ProcessModel.find(guid: app_guid)
+                raise CloudController::Errors::NotFound.new_from_details('ProcessNotFound', app_guid) unless process
+
+                crash_payload = {
+                  "index" => instance_index,
+                  "instance" => event['metadata']['name'],
+                  "reason" => event['reason'],
+                  "exit_description" => event['message'],
+                  "exit_status" => 999,
+                  "crash_count" => event['count'],
+                  "crash_timestamp" => DateTime.parse(event['lastTimestamp']).to_i
+                }
+                crash_payload['version'] = Diego::ProcessGuid.cc_process_version(process_guid)
+
+                p "crash_payload #{crash_payload}"
+                Repositories::ProcessEventRepository.record_crash(process, crash_payload)
+                Repositories::AppEventRepository.new.create_app_exit_event(process, crash_payload)
+              end
             end
           end
         end
@@ -133,6 +162,28 @@ module VCAP::CloudController
         logger.error "Encountered error: #{e}\n#{e.backtrace.join("\n")}"
         raise e
       end
+    end
+
+    def parse_events(last, chunk)
+      last, pieces = split_lines(last, chunk)
+      p "last: #{last} , pieces: #{pieces}"
+      pieces.each do |part|
+        obj = JSON.parse(part)
+        p "parsed object: #{obj}"
+        yield obj['object']
+      end
+    end
+
+    def split_lines(last, chunk)
+      data = chunk
+      data = last + '' + data
+
+      ix = data.rindex("\n")
+      return [data, []] unless ix
+
+      complete = data[0..ix]
+      last = data[(ix + 1)..data.length]
+      [last, complete.split(/\n/)]
     end
 
     def gather_periodic_metrics
