@@ -37,7 +37,10 @@ module Logcache
 
       final_envelopes.
         select { |e| has_container_metrics_fields?(e) && logcache_filter.call(e) }.
-        uniq { |e| e.gauge.metrics.keys << e.instance_id }.
+        # workaround metric-proxy sending non-numeric instance_id in disk usage metric, see
+        # https://github.com/cloudfoundry/metric-proxy/blob/10ea8430e142910ef949f1f425f2d9eda10b950c/pkg/metrics/proxy.go#L176
+        # uniq { |e| e.gauge.metrics.keys << e.instance_id }.
+        uniq { |e| e.gauge.metrics.keys << '0' }.
         sort_by(&:instance_id).
         chunk(&:instance_id).
         map { |envelopes_by_instance| convert_to_traffic_controller_envelope(source_guid, envelopes_by_instance) }
