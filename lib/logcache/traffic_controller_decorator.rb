@@ -35,15 +35,22 @@ module Logcache
         end
       end
 
+      instance_id_to_index = Hash[final_envelopes.
+        uniq { |e| e.instance_id }.
+        sort_by { |e| e.instance_id }.
+        each_with_index.
+        map { |e, i| [e.instance_id, i] }
+      ]
+
       final_envelopes.
         select { |e| has_container_metrics_fields?(e) && logcache_filter.call(e) }.
         # workaround metric-proxy sending non-numeric instance_id in disk usage metric, see
         # https://github.com/cloudfoundry/metric-proxy/blob/10ea8430e142910ef949f1f425f2d9eda10b950c/pkg/metrics/proxy.go#L176
         # uniq { |e| e.gauge.metrics.keys << e.instance_id }.
-        uniq { |e| e.gauge.metrics.keys << '0' }.
-        sort_by(&:instance_id).
-        chunk(&:instance_id).
-        map { |envelopes_by_instance| convert_to_traffic_controller_envelope(source_guid, envelopes_by_instance) }
+        uniq { |e | e.gauge.metrics.keys << instance_id_to_index[e.instance_id] }.
+        sort_by{ |e| e.instance_id }.
+        chunk{ |e| e.instance_id }.
+        map { |envelopes_by_instance| convert_to_traffic_controller_envelope(source_guid, envelopes_by_instance, instance_id_to_index[envelopes_by_instance.first]) }
     end
 
     private
@@ -71,17 +78,18 @@ module Logcache
       # rubocop:enable Style/PreferredHashMethods
     end
 
-    def convert_to_traffic_controller_envelope(source_guid, envelopes_by_instance)
+    def convert_to_traffic_controller_envelope(source_guid, envelopes_by_instance, index)
       tc_envelope = TrafficController::Models::Envelope.new(
         containerMetric: TrafficController::Models::ContainerMetric.new({
           applicationId: source_guid,
-          instanceIndex: envelopes_by_instance.first,
+          # instanceIndex: envelopes_by_instance.first,
+          instanceIndex: index,
         }),
       )
 
       tags = {}
       envelopes_by_instance.second.each { |e|
-        tc_envelope.containerMetric.instanceIndex = e.instance_id
+        tc_envelope.containerMetric.instanceIndex = index
         # rubocop seems to think that there is a 'key?' method
         # on envelope.gauge.metrics - but it does not
         # rubocop:disable Style/PreferredHashMethods
