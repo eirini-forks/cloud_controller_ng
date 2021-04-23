@@ -39,7 +39,7 @@ module VCAP::CloudController
 
         bbs_instances_client.lrp_instances(process).each do |actual_lrp|
           index = actual_lrp.actual_lrp_key.index
-          next unless index < process.instances
+          # next unless index < process.instances
 
           info = {
             state: LrpStateTranslator.translate_lrp_state(actual_lrp),

@@ -20,7 +20,7 @@ module VCAP::CloudController
       def all_instances_for_app(process)
         instances = {}
         bbs_instances_client.lrp_instances(process).each do |actual_lrp|
-          next unless actual_lrp.actual_lrp_key.index < process.instances
+          # next unless actual_lrp.actual_lrp_key.index < process.instances
 
           current_time_ns = Time.now.to_f * 1e9
           translated_state = LrpStateTranslator.translate_lrp_state(actual_lrp)
