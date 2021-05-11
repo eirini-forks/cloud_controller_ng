@@ -47,7 +47,7 @@ module Logcache
           #
           # This is only a hack. In the real fix we should just change the way the metrics proxy works
           # so that it just takes the last 5 characters of the pod name
-          e.instance_id = e.instance_id.split(//).last(5).join("").to_s.to_i(36).to_s
+          e.instance_id = e.instance_id.split(//).last(5).join("").to_s
           e
         }.
         uniq { |e| e.gauge.metrics.keys << e.instance_id }.

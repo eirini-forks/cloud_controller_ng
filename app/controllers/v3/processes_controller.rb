@@ -64,7 +64,7 @@ class ProcessesController < ApplicationController
   end
 
   def terminate
-    ProcessTerminate.new(user_audit_info, @process, hashed_params[:index].to_i).terminate
+    ProcessTerminate.new(user_audit_info, @process, hashed_params[:index]).terminate
 
     head :no_content
   rescue ProcessTerminate::InstanceNotFound

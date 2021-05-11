@@ -40,7 +40,7 @@ module VCAP::CloudController
     def kill_instance(guid, index)
       process = find_guid_and_validate_access(:update, guid)
 
-      index_stopper.stop_index(process, index.to_i)
+      index_stopper.stop_index(process, index)
       [HTTP::NO_CONTENT, nil]
     end
 
