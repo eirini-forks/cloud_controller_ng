@@ -40,6 +40,7 @@ module VCAP::CloudController
     def kill_instance(guid, index)
       process = find_guid_and_validate_access(:update, guid)
 
+      index = index.to_i unless Config.config.get(:opi, :enabled)
       index_stopper.stop_index(process, index)
       [HTTP::NO_CONTENT, nil]
     end

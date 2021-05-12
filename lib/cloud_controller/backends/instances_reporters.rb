@@ -43,7 +43,8 @@ module VCAP::CloudController
                else
                  dependency_locator.traffic_controller_client
                end
-      Diego::InstancesStatsReporter.new(dependency_locator.bbs_instances_client, client)
+      use_instance_uid = Config.config.get(:opi, :enabled)
+      Diego::InstancesStatsReporter.new(dependency_locator.bbs_instances_client, client, use_instance_uid)
     end
 
     def dependency_locator

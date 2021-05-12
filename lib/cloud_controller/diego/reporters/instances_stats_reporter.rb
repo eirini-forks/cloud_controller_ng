@@ -7,7 +7,8 @@ module VCAP::CloudController
     class InstancesStatsReporter
       include ReporterMixins
 
-      def initialize(bbs_instances_client, logstats_client)
+      def initialize(bbs_instances_client, logstats_client, use_instance_uid)
+        @use_instance_uid = use_instance_uid
         @bbs_instances_client = bbs_instances_client
         @logstats_client = logstats_client
       end
@@ -24,7 +25,7 @@ module VCAP::CloudController
         stats = log_cache_data.
                 map { |e|
           [
-            e.containerMetric.instanceIndex,
+            @use_instance_uid ? e.containerMetric.instanceUid : e.containerMetric.instanceIndex,
             converted_container_metrics(e.containerMetric, formatted_current_time),
           ]
         }.to_h
@@ -32,7 +33,7 @@ module VCAP::CloudController
         quota_stats = log_cache_data.
                       map { |e|
                         [
-                          e.containerMetric.instanceIndex,
+                          @use_instance_uid ? e.containerMetric.instanceUid : e.containerMetric.instanceIndex,
                           e.containerMetric,
                         ]
                       }.to_h

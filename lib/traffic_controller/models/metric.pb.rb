@@ -36,12 +36,13 @@ module TrafficController
 
     class ContainerMetric
       required :string, :applicationId, 1
-      required :string, :instanceIndex, 2
+      required :int32, :instanceIndex, 2
       required :double, :cpuPercentage, 3
       required :uint64, :memoryBytes, 4
       required :uint64, :diskBytes, 5
       optional :uint64, :memoryBytesQuota, 6
       optional :uint64, :diskBytesQuota, 7
+      optional :string, :instanceUid, 8
     end
   end
 end

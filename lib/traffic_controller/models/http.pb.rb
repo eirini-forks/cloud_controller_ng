@@ -87,9 +87,10 @@ module TrafficController
       required :int32, :statusCode, 9
       required :int64, :contentLength, 10
       optional ::TrafficController::Models::UUID, :applicationId, 12
-      optional :string, :instanceIndex, 13
+      optional :int32, :instanceIndex, 13
       optional :string, :instanceId, 14
       repeated :string, :forwarded, 15
+      optional :string, :instanceUid, 16
     end
   end
 end

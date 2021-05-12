@@ -5,8 +5,9 @@ module Logcache
   class TrafficControllerDecorator
     MAX_REQUEST_COUNT = 100
 
-    def initialize(logcache_client)
+    def initialize(logcache_client, use_instance_uid)
       @logcache_client = logcache_client
+      @use_instance_uid = use_instance_uid
     end
 
     def container_metrics(auth_token: nil, source_guid:, logcache_filter:)
@@ -69,16 +70,27 @@ module Logcache
     end
 
     def convert_to_traffic_controller_envelope(source_guid, envelopes_by_instance)
+      containerMetric = TrafficController::Models::ContainerMetric.new({
+         applicationId: source_guid,
+      })
+
+      if @use_instance_uid
+        containerMetric.instanceUid = envelopes_by_instance.first
+      else
+        containerMetric.instanceIndex = envelopes_by_instance.first
+      end
+
       tc_envelope = TrafficController::Models::Envelope.new(
-        containerMetric: TrafficController::Models::ContainerMetric.new({
-          applicationId: source_guid,
-          instanceIndex: envelopes_by_instance.first,
-        }),
+        containerMetric: containerMetric,
       )
 
       tags = {}
       envelopes_by_instance.second.each { |e|
-        tc_envelope.containerMetric.instanceIndex = e.instance_id
+        if @use_instance_uid
+          tc_envelope.containerMetric.instanceUid = e.instance_id
+        else
+          tc_envelope.containerMetric.instanceIndex = e.instance_id
+        end
         # rubocop seems to think that there is a 'key?' method
         # on envelope.gauge.metrics - but it does not
         # rubocop:disable Style/PreferredHashMethods

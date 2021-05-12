@@ -106,7 +106,7 @@ module CloudController
 
     def traffic_controller_compatible_logcache_client
       @dependencies[:traffic_controller_compatible_logcache_client] ||
-          register(:traffic_controller_compatible_logcache_client, Logcache::TrafficControllerDecorator.new(logcache_client))
+        register(:traffic_controller_compatible_logcache_client, Logcache::TrafficControllerDecorator.new(logcache_client, config.get(:opi, :enabled)))
     end
 
     def upload_handler
